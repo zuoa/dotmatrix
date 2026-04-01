@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>点阵图生成器</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #f7f6f3;
+      --surface: #ffffff;
+      --border: rgba(0,0,0,0.12);
+      --border-hover: rgba(0,0,0,0.25);
+      --text: #1a1a1a;
+      --text-muted: #6b6b6b;
+      --radius: 12px;
+      --radius-sm: 8px;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #141414;
+        --surface: #1e1e1e;
+        --border: rgba(255,255,255,0.1);
+        --border-hover: rgba(255,255,255,0.25);
+        --text: #f0f0f0;
+        --text-muted: #888;
+      }
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 2rem 1rem;
+    }
+    .container { max-width: 960px; margin: 0 auto; }
+    h1 { font-size: 26px; font-weight: 600; margin-bottom: 4px; }
+    .subtitle { font-size: 14px; color: var(--text-muted); margin-bottom: 2rem; }
+    .layout { display: grid; grid-template-columns: 260px 1fr; gap: 1.5rem; align-items: start; }
+    @media (max-width: 640px) { .layout { grid-template-columns: 1fr; } }
+    .panel {
+      background: var(--surface);
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+    }
+    .section-label {
+      font-size: 11px; font-weight: 600; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 0.08em;
+      margin-bottom: 10px; margin-top: 18px;
+    }
+    .section-label:first-child { margin-top: 0; }
+    .drop-zone {
+      border: 1.5px dashed var(--border-hover);
+      border-radius: var(--radius-sm);
+      padding: 1.75rem 1rem; text-align: center;
+      cursor: pointer; transition: all 0.2s; background: var(--bg);
+    }
+    .drop-zone:hover { border-color: #777; }
+    .drop-zone-icon { font-size: 26px; margin-bottom: 8px; }
+    .drop-zone p { font-size: 13px; color: var(--text-muted); }
+    .drop-zone strong { display: block; font-size: 14px; color: var(--text); font-weight: 500; margin-bottom: 4px; }
+    .slider-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .slider-row label { font-size: 13px; color: var(--text-muted); flex: 1; }
+    .slider-row span { font-size: 13px; font-weight: 500; min-width: 30px; text-align: right; }
+    input[type=range] {
+      -webkit-appearance: none; width: 100px; height: 4px;
+      border-radius: 2px; background: var(--border-hover); outline: none; cursor: pointer;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 16px; height: 16px;
+      border-radius: 50%; background: var(--text); cursor: pointer;
+    }
+    .color-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 10px; }
+    .color-btn {
+      width: 100%; aspect-ratio: 1; border-radius: 6px;
+      border: 2.5px solid transparent; cursor: pointer;
+      transition: transform 0.15s, border-color 0.15s;
+    }
+    .color-btn:hover { transform: scale(1.1); }
+    .color-btn.active { border-color: var(--text); }
+    .shape-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .shape-btn {
+      padding: 8px 4px; border: 0.5px solid var(--border);
+      border-radius: var(--radius-sm); background: var(--bg);
+      font-size: 12px; color: var(--text-muted);
+      cursor: pointer; text-align: center; transition: all 0.15s;
+    }
+    .shape-btn:hover { color: var(--text); border-color: var(--border-hover); }
+    .shape-btn.active { background: var(--surface); border-color: var(--border-hover); color: var(--text); font-weight: 600; }
+    select {
+      width: 100%; padding: 7px 10px; border: 0.5px solid var(--border);
+      border-radius: var(--radius-sm); background: var(--bg);
+      color: var(--text); font-size: 13px; outline: none;
+    }
+    .btn-row { display: flex; gap: 8px; margin-top: 16px; }
+    .btn {
+      flex: 1; padding: 9px 12px; border: 0.5px solid var(--border-hover);
+      border-radius: var(--radius-sm); background: transparent;
+      color: var(--text); font-size: 13px; cursor: pointer; transition: background 0.15s;
+    }
+    .btn:hover { background: var(--bg); }
+    .btn.primary { background: var(--text); color: var(--surface); border-color: var(--text); }
+    .btn.primary:hover { opacity: 0.82; }
+    .canvas-wrap {
+      background: var(--surface); border: 0.5px solid var(--border);
+      border-radius: var(--radius); overflow: hidden; min-height: 420px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    canvas { display: block; max-width: 100%; }
+    .empty-hint { text-align: center; color: var(--text-muted); font-size: 14px; }
+    .empty-hint svg { display: block; margin: 0 auto 12px; opacity: 0.25; }
+    #file-input { display: none; }
+    footer { margin-top: 2.5rem; text-align: center; font-size: 12px; color: var(--text-muted); }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>点阵图生成器</h1>
+  <p class="subtitle">上传图片，生成风格独特的点阵艺术</p>
+  <div class="layout">
+    <div class="panel">
+      <div class="section-label">上传图片</div>
+      <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+        <div class="drop-zone-icon">⬆</div>
+        <strong>点击选择图片</strong>
+        <p>或拖拽到此处</p>
+      </div>
+      <input type="file" id="file-input" accept="image/*">
+
+      <div class="section-label">点的大小</div>
+      <div class="slider-row">
+        <label>密度</label>
+        <input type="range" id="dot-size" min="3" max="20" value="7" step="1">
+        <span id="dot-size-val">7</span>
+      </div>
+
+      <div class="section-label">点的间距</div>
+      <div class="slider-row">
+        <label>间距</label>
+        <input type="range" id="gap" min="0" max="6" value="1" step="1">
+        <span id="gap-val">1</span>
+      </div>
+
+      <div class="section-label">亮度 / 对比度</div>
+      <div class="slider-row">
+        <label>亮度</label>
+        <input type="range" id="brightness" min="-80" max="80" value="0" step="1">
+        <span id="brightness-val">0</span>
+      </div>
+      <div class="slider-row">
+        <label>对比度</label>
+        <input type="range" id="contrast" min="-80" max="80" value="20" step="1">
+        <span id="contrast-val">20</span>
+      </div>
+
+      <div class="section-label">点的形状</div>
+      <div class="shape-grid">
+        <div class="shape-btn active" data-shape="circle" onclick="setShape(this)">● 圆形</div>
+        <div class="shape-btn" data-shape="square" onclick="setShape(this)">■ 方形</div>
+        <div class="shape-btn" data-shape="diamond" onclick="setShape(this)">◆ 菱形</div>
+        <div class="shape-btn" data-shape="star" onclick="setShape(this)">★ 星形</div>
+        <div class="shape-btn" data-shape="cross" onclick="setShape(this)">✚ 十字</div>
+        <div class="shape-btn" data-shape="ring" onclick="setShape(this)">○ 环形</div>
+      </div>
+
+      <div class="section-label">配色方案</div>
+      <div class="color-grid" id="color-grid"></div>
+      <select id="bg-select">
+        <option value="white">白色背景</option>
+        <option value="black">黑色背景</option>
+        <option value="cream">米白背景</option>
+        <option value="dark">深灰背景</option>
+      </select>
+
+      <div class="btn-row">
+        <button class="btn" onclick="render()">刷新</button>
+        <button class="btn primary" onclick="download()">下载 PNG</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="canvas-wrap">
+        <div class="empty-hint" id="empty-hint">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
+            <polyline points="21 15 16 10 5 21"/>
+          </svg>
+          上传图片后在此预览
+        </div>
+        <canvas id="output" style="display:none;"></canvas>
+      </div>
+    </div>
+  </div>
+  <footer>点阵图生成器 · 纯前端实现，图片不会上传到任何服务器</footer>
+</div>
+
+<script>
+const PALETTES = [
+  { name: '经典黑', dots: '#1a1a1a' }, { name: '深蓝', dots: '#185FA5' },
+  { name: '珊瑚红', dots: '#D85A30' }, { name: '墨绿', dots: '#3B6D11' },
+  { name: '紫罗兰', dots: '#7F77DD' }, { name: '玫粉', dots: '#D4537E' },
+  { name: '琥珀', dots: '#BA7517' },   { name: '青色', dots: '#1D9E75' },
+  { name: '金属银', dots: '#5F5E5A' }, { name: '番茄红', dots: '#E24B4A' },
+  { name: '极光紫', dots: '#534AB7' }, { name: '海蓝', dots: '#378ADD' },
+];
+const BG_COLORS = { white: '#ffffff', black: '#0d0d0d', cream: '#F5F0E8', dark: '#1e1e1e' };
+let currentShape = 'circle', currentPaletteIdx = 0, loadedImage = null;
+
+function initPalettes() {
+  const grid = document.getElementById('color-grid');
+  PALETTES.forEach((p, i) => {
+    const btn = document.createElement('div');
+    btn.className = 'color-btn' + (i === 0 ? ' active' : '');
+    btn.style.background = p.dots; btn.title = p.name;
+    btn.onclick = () => {
+      document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active'); currentPaletteIdx = i; render();
+    };
+    grid.appendChild(btn);
+  });
+}
+
+function setShape(el) {
+  document.querySelectorAll('.shape-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active'); currentShape = el.dataset.shape; render();
+}
+
+function setupSlider(id, valId) {
+  const sl = document.getElementById(id), vl = document.getElementById(valId);
+  sl.addEventListener('input', () => { vl.textContent = sl.value; render(); });
+}
+setupSlider('dot-size','dot-size-val'); setupSlider('gap','gap-val');
+setupSlider('brightness','brightness-val'); setupSlider('contrast','contrast-val');
+document.getElementById('bg-select').addEventListener('change', render);
+
+const dropZone = document.getElementById('drop-zone');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.style.borderColor='#777'; });
+dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor=''; });
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.style.borderColor='';
+  const f = e.dataTransfer.files[0];
+  if (f && f.type.startsWith('image/')) loadFile(f);
+});
+document.getElementById('file-input').addEventListener('change', e => {
+  if (e.target.files[0]) loadFile(e.target.files[0]);
+});
+
+function loadFile(file) {
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = new Image();
+    img.onload = () => { loadedImage = img; render(); };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function clamp(v,lo,hi){ return Math.max(lo,Math.min(hi,v)); }
+
+function render() {
+  if (!loadedImage) return;
+  const dotSize = parseInt(document.getElementById('dot-size').value);
+  const gap = parseInt(document.getElementById('gap').value);
+  const brightness = parseInt(document.getElementById('brightness').value);
+  const contrast = parseInt(document.getElementById('contrast').value);
+  const bgColor = BG_COLORS[document.getElementById('bg-select').value];
+  const dotColor = PALETTES[currentPaletteIdx].dots;
+  const step = dotSize + gap;
+  const MAX_W = 800;
+  const srcW = loadedImage.naturalWidth, srcH = loadedImage.naturalHeight;
+  const scale = Math.min(1, MAX_W / srcW);
+  const w = Math.round(srcW * scale), h = Math.round(srcH * scale);
+  const cols = Math.floor(w / step), rows = Math.floor(h / step);
+  const outW = cols * step + gap, outH = rows * step + gap;
+
+  const samp = document.createElement('canvas');
+  samp.width = cols; samp.height = rows;
+  const sc = samp.getContext('2d');
+  sc.drawImage(loadedImage, 0, 0, cols, rows);
+  const px = sc.getImageData(0, 0, cols, rows).data;
+
+  function getLum(x, y) {
+    const i = (y * cols + x) * 4;
+    const f = (259 * (contrast + 128)) / (128 * (259 - contrast));
+    const r = clamp(f*(px[i]-128)+128+brightness, 0, 255);
+    const g = clamp(f*(px[i+1]-128)+128+brightness, 0, 255);
+    const b = clamp(f*(px[i+2]-128)+128+brightness, 0, 255);
+    return 0.299*r + 0.587*g + 0.114*b;
+  }
+
+  const out = document.getElementById('output');
+  out.width = outW; out.height = outH;
+  const ctx = out.getContext('2d');
+  ctx.fillStyle = bgColor; ctx.fillRect(0, 0, outW, outH);
+  ctx.fillStyle = dotColor;
+  const half = dotSize / 2;
+
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const ratio = 1 - getLum(col, row) / 255;
+      const r = half * ratio;
+      if (r < 0.5) continue;
+      const cx = gap + col * step + half, cy = gap + row * step + half;
+      drawDot(ctx, cx, cy, r);
+    }
+  }
+  document.getElementById('empty-hint').style.display = 'none';
+  out.style.display = 'block';
+}
+
+function drawDot(ctx, cx, cy, r) {
+  ctx.beginPath();
+  switch (currentShape) {
+    case 'circle': ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill(); break;
+    case 'square': ctx.fillRect(cx-r,cy-r,r*2,r*2); break;
+    case 'diamond':
+      ctx.moveTo(cx,cy-r); ctx.lineTo(cx+r,cy);
+      ctx.lineTo(cx,cy+r); ctx.lineTo(cx-r,cy);
+      ctx.closePath(); ctx.fill(); break;
+    case 'star':
+      for (let i=0;i<10;i++) {
+        const a=(i*Math.PI)/5-Math.PI/2, rr=i%2===0?r:r*0.42;
+        i===0?ctx.moveTo(cx+rr*Math.cos(a),cy+rr*Math.sin(a))
+             :ctx.lineTo(cx+rr*Math.cos(a),cy+rr*Math.sin(a));
+      }
+      ctx.closePath(); ctx.fill(); break;
+    case 'cross':
+      const t=r*0.35;
+      ctx.fillRect(cx-t,cy-r,t*2,r*2);
+      ctx.fillRect(cx-r,cy-t,r*2,t*2); break;
+    case 'ring':
+      ctx.arc(cx,cy,r,0,Math.PI*2);
+      ctx.arc(cx,cy,r*0.45,0,Math.PI*2,true);
+      ctx.fill('evenodd'); break;
+  }
+}
+
+function download() {
+  const out = document.getElementById('output');
+  if (out.style.display==='none') return alert('请先上传图片');
+  const a = document.createElement('a');
+  a.download = 'dotmatrix.png'; a.href = out.toDataURL('image/png'); a.click();
+}
+
+initPalettes();
+</script>
+</body>
+</html>
